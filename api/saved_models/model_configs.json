@@ -1,0 +1,9 @@
+[
+    {
+        "model_id": "TF-CNN-v1",
+        "weights_path": "TransformerCNN.onnx",
+        "class_map_path": "WLASL_classes_300.json",
+		"save_type": "ONNX",
+        "device": "cpu"
+    }
+]

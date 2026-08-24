@@ -1,0 +1,89 @@
+/* Requirement 8: grey + light-blue palette, minimalistic formal typography. */
+:root {
+  /*primaries*/
+  --bg: #f3f5f7;
+  --surface: #ffffff;
+  --border: #dde3e9;
+  --text-primary: #202932;
+  --text-secondary: #5c6b79;
+  --text-muted: #8a97a6;
+
+  /*accents*/
+  --accent: #4fa3d9;
+  --accent-dark: #2f6690;
+  --accent-soft: #e8f2fa;
+  --danger: #c0524e;
+  --danger-soft: #f8e9e8;
+
+  /*etc*/
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --font-sans: "Inter", "Open Sans", "Roboto", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+button, select, input {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+h1, h2, h3 {
+  font-weight: 600;
+  margin: 0;
+}
+
+.btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-weight: 500;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+}
+
+.btn--danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #ffffff;
+}

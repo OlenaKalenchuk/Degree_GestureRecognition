@@ -1,0 +1,10 @@
+﻿# python venv
+venv/
+.venv/
+
+# test files
+camera_test.html
+api/main.py
+WLASL_classes_100.json
+wlasl_class_list.txt
+*.pt

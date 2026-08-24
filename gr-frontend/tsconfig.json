@@ -1,0 +1,22 @@
+{
+  "files": [],
+  "compilerOptions": {
+    "target": "es2020",
+    "useDefineForClassFields": true,
+    "lib": ["es2020", "dom", "dom.iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "strict": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "noFallthroughCasesInSwitch": true,
+    "ignoreDeprecations": "5.0"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
+}
