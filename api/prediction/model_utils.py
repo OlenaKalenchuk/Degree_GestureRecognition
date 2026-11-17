@@ -10,6 +10,7 @@ import logging
 from api.config import MODEL_CONFIG_PATH, MODEL_DIR
 from api.mediapipe_detection.LandmarkExtractor import LandmarkExtractor
 from api.mediapipe_detection.LandmarkConfig import LandmarkConfig
+from api.prediction.pred_decoders import CTCGreedyDecoder, MultiClassDecoder, TaskType
 
 
 try:
@@ -46,7 +47,10 @@ def preload_models(config_path: Path | str = MODEL_CONFIG_PATH)-> dict[str, str]
                 weights_path=cfg["weights_path"],
                 class_map_path=cfg["class_map_path"],
                 save_type=SaveMethod[cfg.get("save_type", "FULL")],
-                device=cfg.get("device", "cpu")
+                device=cfg.get("device", "cpu"),
+                task=TaskType(cfg.get("task", "classification")),
+                use_pose=cfg.get("use_pose", True),
+                blank_index=cfg.get("blank_index", 0)
             )
             results[model_id] = "loaded"
         except Exception as exc:
@@ -92,16 +96,20 @@ class OnnxModelWrapper:
             raise ImportError("Module onnxruntime is not installed - can't load ONNX models.")
         providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if device.startswith("cuda") else ["CPUExecutionProvider"]
         self.session = ort.InferenceSession(weights_path, providers=providers)
+        outputs = self.session.get_outputs()
+        if len(outputs) != 1:
+            raise ValueError(f"Expected an ONNX graph with a single output, found: {[o.name for o in outputs]}.")
+        self.output_name = outputs[0].name
         self.device = device
  
     def predict(self, landmarks: torch.Tensor, frames: torch.Tensor, pad_mask: torch.Tensor) -> torch.Tensor:
-        """Returns: (B, num_classes) on cpu."""
+        """Returns: (B, num_classes) or (B, T', C) for CTC on cpu."""
         feeds = {
             self.INPUT_NAMES["landmarks"]: landmarks.cpu().numpy(),
             self.INPUT_NAMES["frames"]: frames.cpu().numpy(),
             self.INPUT_NAMES["pad_mask"]: pad_mask.cpu().numpy(),
         }
-        outputs = self.session.run([self.OUTPUT_NAME], feeds)
+        outputs = self.session.run([self.output_name], feeds)
         return torch.from_numpy(outputs[0])
 
 class ModelEntry:
@@ -113,12 +121,18 @@ class ModelEntry:
         model_id: str,
         model,
         class_map: dict[str, int],
-        device: str
+        device: str,
+        task: TaskType = TaskType.CLASSIFICATION,
+        use_pose: bool = False,
+        decoder=None
         ):
         self.model_id = model_id
         self.model = model
         self.class_map = class_map
         self.device = device
+        self.task = task
+        self.use_pose = use_pose
+        self.decoder = decoder
 
 
 
@@ -162,6 +176,7 @@ class ModelManager:
                 "model_id": entry.model_id,
                 "class_count": len(entry.class_map),
                 "device": entry.device,
+                "task": entry.task.value,
                 "is_active": (entry.model_id == self._active_id),
             }
             for entry in self._registry.values()
@@ -186,9 +201,13 @@ class ModelManager:
         class_map_path: str,
         save_type: SaveMethod = SaveMethod.FULL,
         device: str = "cpu",
+        task: TaskType = TaskType.CLASSIFICATION,
+        use_pose: bool = False,
+        blank_index: int = 0
         ) -> None:
         """
-        Load a model from disk.
+        Load a model from disk. Task refers to what the model actually does - e.g. classification.
+        `blank_index` is optional, required per CTC.
         Supported save methods:
         - FULL: full nn.Module (torch.save(model)).
         - WEIGHTS_ONLY: checkpoint dict with 'state_dict' AND 'config' - mirrors model architecture.
@@ -199,6 +218,7 @@ class ModelManager:
         if not path.exists():
             raise FileNotFoundError(f"Model file not found at: {weights_path}")
         class_map = self._load_classes(MODEL_DIR / class_map_path) 
+        decoder = CTCGreedyDecoder(class_map, blank_index) if task == TaskType.CTC else MultiClassDecoder(class_map)
 
         if save_type == SaveMethod.ONNX:
             wrapper = OnnxModelWrapper(str(path), device)
@@ -214,7 +234,7 @@ class ModelManager:
         else:
             raise ValueError(f"Unsupported model save type: {save_type}")
         
-        self._registry[model_id] = ModelEntry(model_id, wrapper, class_map, device)
+        self._registry[model_id] = ModelEntry(model_id, wrapper, class_map, device, task, use_pose, decoder)
         # Auto-activate first
         if self._active_id is None:
             self._active_id = model_id
@@ -242,6 +262,8 @@ class ModelManager:
         if model_id not in self._registry:
             raise KeyError(f"Model '{model_id}' is not loaded - load it with load() before calling.")
         self._active_id = model_id
+        self._lm_extractor.toggle_pose(self._registry[model_id].use_pose)
+        
 
     def unload(self, model_id: str) -> None:
         """

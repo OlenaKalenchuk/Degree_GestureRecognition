@@ -1,9 +1,21 @@
 [
     {
-        "model_id": "TF-CNN-v1",
+        "model_id": "Isolated_TF",
         "weights_path": "TransformerCNN.onnx",
         "class_map_path": "WLASL_classes_300.json",
 		"save_type": "ONNX",
-        "device": "cpu"
+        "device": "cpu",
+        "task": "classification",
+        "use_pose": true
+    },
+    {
+        "model_id": "Fingerspell_RNN",
+        "weights_path": "FingerspellRNN_v4.onnx",
+        "class_map_path": "FSWild_vocabulary.json",
+        "save_type": "ONNX",
+        "device": "cpu",
+        "task": "ctc",
+        "use_pose": false,
+        "blank_index": 0
     }
 ]
