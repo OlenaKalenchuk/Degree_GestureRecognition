@@ -39,11 +39,12 @@ class LiveDetectionSession:
         elif task == TaskType.CTC:
             return GestureBuffer(self.max_frames, self.min_frames, self.hand_tol)
 
-    def switch_task_to(self, task:TaskType):
+    def switch_task_to(self, task:TaskType, use_pose: bool = True):
         """Configures a new buffer if a model task was changed."""
         if task != self.task:
             self.task = task
             self.buffer = self.create_buffer(task)
+            self.extractor.toggle_pose(use_pose)
     
     def toggle_recognition(self, enabled: bool):
         """Toggle main gesture recognition on/off. Resets the inner buffer."""

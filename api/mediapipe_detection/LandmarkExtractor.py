@@ -112,9 +112,10 @@ class LandmarkExtractor:
                 elif hand == 'right':
                     rhand_lm = np.array([(lm.x, lm.y, lm.z) for lm in hand_landmarks], dtype=np.float32)[self.config.HAND_LANDMARKS]
         result = {"left_hand": lhand_lm, "right_hand": rhand_lm}
-        if pose_result is not None and pose_result.pose_landmarks:
+        if self.config.use_pose:
             pose_lm = np.zeros((len(self.config.POSE_LANDMARKS), self.NUM_COORDS), dtype=np.float32)
-            pose_lm = np.array([(lm.x, lm.y, lm.z) for lm in pose_result.pose_landmarks[0]], dtype=np.float32)[self.config.POSE_LANDMARKS] # pose_landmarks holds multiple poses
+            if pose_result is not None and pose_result.pose_landmarks:
+                pose_lm = np.array([(lm.x, lm.y, lm.z) for lm in pose_result.pose_landmarks[0]], dtype=np.float32)[self.config.POSE_LANDMARKS] # pose_landmarks holds multiple poses
             result["pose"] = pose_lm
         return result
 

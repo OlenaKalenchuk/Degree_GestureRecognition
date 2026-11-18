@@ -216,7 +216,7 @@ async def ws_camera_predict(
 
             entry = model_manager.active_model
             if entry is not None:
-                live_session.switch_task_to(entry.task)
+                live_session.switch_task_to(entry.task, entry.use_pose)
             result = live_session.process_frame(frame_bgr)
             response = {"hands_present": result["hands_present"]}
             if enable_landmarks:
@@ -226,7 +226,7 @@ async def ws_camera_predict(
                 if entry is None:
                     response["error"] = "No model loaded on server."
                 else:
-                    response["prediction"] = predict_from_live(result["video_result"], live_session.frame_limit)
+                    response["prediction"] = predict_from_live(result["video_result"], live_session.frame_limit).model_dump(mode="json")
  
             await websocket.send_json(response)
  

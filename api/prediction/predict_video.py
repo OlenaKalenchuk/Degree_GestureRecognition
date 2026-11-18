@@ -137,7 +137,7 @@ def predict_from_path(
         for i, window in enumerate(windows):
             window.window_index = i
 
-    return PredictResponse(active_model=model_manager.active_id, n_frames=n_frames, windows=windows, sequences=sequences)
+    return PredictResponse(active_model=model_manager.active_id, n_frames=n_frames, windows=windows, sequences=sequences, task=entry.task.value)
 
 
 def predict_from_video(
@@ -158,30 +158,17 @@ def predict_from_video(
 def predict_from_live(
     video: dict, 
     frame_limit: int = MAX_CLIP_FRAMES
-    ) -> dict:
+    ) -> PredictResponse:
     """Predict from the websocket"""
     entry = _check_required_model()
+    n_frames = len(video["frame_idx"])
     if entry.task == TaskType.CTC:
         tensors = video_to_tensors(video, WINDOW_MAX_FRAMES)
         tokens = run_predict_sequence(tensors)
+        prediction = SequencePrediction(segment_index=0, text=CTCGreedyDecoder.to_text(tokens), tokens=tokens)
         # tokens = _map_token_frames(tokens, video["frame_idx"])
-        return {"task": entry.task.value, "text": CTCGreedyDecoder.to_text(tokens), "tokens": [t.model_dump() for t in tokens]}
+        return PredictResponse(active_model=model_manager.active_id, n_frames=n_frames, task="ctc", windows=[], sequences=[prediction])
     else:
         top3 = run_predict_class(video_to_tensors(video, frame_limit, True))
-        return {"task": entry.task.value, "top1": top3[0].model_dump(), "top3": [p.model_dump() for p in top3]}
-
-
-# def _map_token_frames(
-#     tokens: list[GesturePrediction],
-#     frame_idx: list[int]
-# ) -> list[GesturePrediction]:
-
-#     last = len(frame_idx) - 1
-
-#     return [
-#         token.model_copy(update={
-#             "start_frame": frame_idx[max(0, min(token.start_frame, last))],
-#             "end_frame": frame_idx[max(0, min(token.end_frame, last))]
-#         })
-#         for token in tokens
-#     ]
+        prediction = WindowPrediction(window_index=0, top1=top3[0], top3=top3)
+        return PredictResponse(active_model=model_manager.active_id, n_frames=n_frames, task="classification", windows=[prediction], sequences=[])

@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from api.schemas import GesturePrediction
 
 class TaskType(str, Enum):
-    CLASSIFICATION = "classification", # multi-class classification
+    CLASSIFICATION = "classification" # multi-class classification
     CTC = "ctc" # connectionist temporal classification
 
 # Simple classification task

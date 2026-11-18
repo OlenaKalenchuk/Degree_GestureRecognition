@@ -89,6 +89,7 @@ def video_to_tensors(video: dict, max_frames: int, resample: bool = False) -> di
 
     if resample:
         # video becomes (max_frames)
+        n = max_frames
         idx = find_shared_index(n_landmarks, n_frames, max_frames)
     else:
         if n > max_frames:
@@ -101,5 +102,5 @@ def video_to_tensors(video: dict, max_frames: int, resample: bool = False) -> di
     return {
         'frames': frames.unsqueeze(0),
         'landmarks': torch.from_numpy(landmarks).float().unsqueeze(0),
-        'pad_mask': torch.zeros(1, max_frames if resample else n, dtype=torch.float32)
+        'pad_mask': torch.zeros(1, n, dtype=torch.float32)
     }
