@@ -11,6 +11,12 @@ MODEL_CONFIG_PATH = Path(__file__).parent / "saved_models" / "model_configs.json
 MODEL_DIR  = Path(__file__).parent / "saved_models" 
 
 
+# ===== FILE UPLOADS =====
+
+FILE_TARGET_FPS = None # None = keep video fps
+FILE_MAX_RESOLUTION = None # shrink by the longer side before detection
+
+
 
 # ===== MEDIAPIPE =====
 
@@ -31,8 +37,13 @@ MP_LANDMARKER_PATH = {
 # ===== VIDEO PREPROCESSING =====
 
 # Video preprocessing settings
-MAX_CLIP_FRAMES = 32 # frames per video limit per clip set by CNN on training
+MAX_CLIP_FRAMES = 32 # frame per video threshold set by CNN
 FRAME_SIZE = (224, 224) # (W, H)
+
+WINDOW_MAX_FRAMES = 128 # max frames per call
+WINDOW_MIN_FRAMES = 8 # min frames per call
+WINDOW_OVERLAP = 32 # frames carried into the next call
+
 
 # Model image normalization (ImageNet default)
 FRAME_NORM_MEAN = [0.485, 0.456, 0.406]
@@ -46,8 +57,10 @@ FRAME_TRANSFORM = T.Compose([
 ])
 
 
+
 # ===== LIVE FEED SETTINGS =====
 
 LIVE_MAX_CLIP_FRAMES = 60 # limit for live gesture
 LIVE_MIN_CLIP_FRAMES = 8
+LIVE_OVERLAP_FRAMES = 16 # frames carried into the next video portion when a hand is up 
 LIVE_MISSING_TOLERANCE = 6 # consecutive frames with no hand gesture before window closing

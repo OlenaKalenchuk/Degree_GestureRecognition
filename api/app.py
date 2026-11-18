@@ -14,9 +14,9 @@ import numpy as np
 from api.mediapipe_detection import LandmarkExtractor
 from api.prediction.cam_session import LiveDetectionSession
 from api.prediction.model_utils import SaveMethod, preload_models, model_manager
-from api.prediction.predict_video import predict_from_video, run_predict_video
+from api.prediction.predict_video import predict_from_live, predict_from_video
 from api.schemas import LoadModelRequest, ModelListResponse, PredictResponse, SwitchModelRequest
-from api.video_processing.video_buffers import resample_video
+from api.video_processing.video_buffers import video_to_tensors
 
 # ================ Init =================
 logging.basicConfig(level=logging.INFO)
@@ -110,8 +110,8 @@ def list_models() -> ModelListResponse:
     active = model_manager.active_model
     return ModelListResponse(
         active_model=model_manager.active_id,
-        models=model_manager.get_model_list(), # type: ignore
-        class_count=len(active.class_map) if active else 0 # CURRENT
+        active_class_count=len(active.class_map) if active else 0, # CURRENT
+        models=model_manager.get_model_list() # type: ignore
     )
 
 @app.put("/models/active", summary="Switch the active model")
@@ -154,9 +154,10 @@ async def predict_file(file: UploadFile = File(..., description="Video file (mp4
     try:
         async with lm_extractor_lock:
             response = predict_from_video(video_bytes, model_manager.lm_extractor)
+        preds_len = len(response.windows) if response.task == "classification" else len(response.sequences)
         logger.info(
             "File '%s': %d frames -> %d gesture window(s)",
-            file.filename, response.n_frames, len(response.windows),
+            file.filename, response.n_frames, preds_len,
         )
         return response
     except ValueError as exc:
@@ -182,6 +183,7 @@ async def ws_camera_predict(
       "landmarks": {"pose": [...], "left_hand": [...], "right_hand": [...]},
       "prediction": {"top1": {...}, "top3": [...]} # if prediction is enabled at all
     }
+    # CTC send {"task": "CTC", "text": "...", "tokens": [...]} instead of topk
     ```
     """
     await websocket.accept()
@@ -211,22 +213,20 @@ async def ws_camera_predict(
             if frame_bgr is None:
                 await websocket.send_json({"error": "Could not decode frame."})
                 continue
- 
+
+            entry = model_manager.active_model
+            if entry is not None:
+                live_session.switch_task_to(entry.task, entry.use_pose)
             result = live_session.process_frame(frame_bgr)
             response = {"hands_present": result["hands_present"]}
             if enable_landmarks:
                 response["landmarks"] = {k: v.tolist() for k, v in result["landmarks"].items()}
  
             if result["video_result"] is not None:
-                if model_manager.active_model is None:
+                if entry is None:
                     response["error"] = "No model loaded on server."
                 else:
-                    clip_tensors = resample_video(result["video_result"], live_session.frame_limit)
-                    top3 = run_predict_video(clip_tensors)
-                    response["prediction"] = {
-                        "top1": top3[0].model_dump(),
-                        "top3": [p.model_dump() for p in top3],
-                    }
+                    response["prediction"] = predict_from_live(result["video_result"], live_session.frame_limit).model_dump(mode="json")
  
             await websocket.send_json(response)
  

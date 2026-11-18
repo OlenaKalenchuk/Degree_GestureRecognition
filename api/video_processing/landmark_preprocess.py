@@ -24,4 +24,5 @@ def pack_landmarks(landmarks: dict) -> np.ndarray:
     """
     left = LandmarkExtractor.normalize_hand(landmarks['left_hand'][None, ...])[0]
     right = LandmarkExtractor.normalize_hand(landmarks['right_hand'][None, ...])[0]
-    return np.concatenate([landmarks['pose'], left, right], axis=0)
+    packed = np.concatenate([landmarks['pose'], left, right], axis=0) if "pose" in landmarks else np.concatenate([left, right], axis=0)
+    return packed

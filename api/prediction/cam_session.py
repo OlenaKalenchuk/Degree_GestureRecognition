@@ -4,7 +4,8 @@ import numpy as np
 from api.video_processing.video_buffers import GestureBuffer
 from api.mediapipe_detection.LandmarkConfig import LandmarkConfig
 from api.mediapipe_detection.LandmarkExtractor import LandmarkExtractor
-from api.config import MP_LANDMARKER_PATH, MAX_CLIP_FRAMES, LIVE_MAX_CLIP_FRAMES, LIVE_MIN_CLIP_FRAMES, LIVE_MISSING_TOLERANCE
+from api.prediction.pred_decoders import TaskType
+from api.config import LIVE_OVERLAP_FRAMES, MP_LANDMARKER_PATH, MAX_CLIP_FRAMES, LIVE_MAX_CLIP_FRAMES, LIVE_MIN_CLIP_FRAMES, LIVE_MISSING_TOLERANCE
 
 
 class LiveDetectionSession:
@@ -19,14 +20,32 @@ class LiveDetectionSession:
         frame_limit: int = MAX_CLIP_FRAMES,
         max_frames: int = LIVE_MAX_CLIP_FRAMES,
         min_frames: int = LIVE_MIN_CLIP_FRAMES,
-        hand_tolerance: int = LIVE_MISSING_TOLERANCE,
+        overlap: int = LIVE_OVERLAP_FRAMES,
+        hand_tolerance: int = LIVE_MISSING_TOLERANCE
         ):
         config = landmark_config or LandmarkConfig(MP_LANDMARKER_PATH)
         self.extractor = LandmarkExtractor(config)
-        self.buffer = GestureBuffer(max_frames, min_frames, hand_tolerance)
-        self.frame_limit = frame_limit
+        self.frame_limit, self.max_frames, self.min_frames = frame_limit, max_frames, min_frames
+        self.overlap = overlap
+        self.hand_tol = hand_tolerance
+        self.buffer = GestureBuffer(max_frames, min_frames, hand_tolerance, overlap)
+        self.task = TaskType.CLASSIFICATION # default
         self.enable_recognition = False
 
+    def create_buffer(self, task: TaskType) -> GestureBuffer:
+        """Create a buffer depending on the current model task."""
+        if task == TaskType.CLASSIFICATION:
+            return GestureBuffer(self.max_frames, self.min_frames, self.hand_tol, overlap=self.overlap)
+        elif task == TaskType.CTC:
+            return GestureBuffer(self.max_frames, self.min_frames, self.hand_tol)
+
+    def switch_task_to(self, task:TaskType, use_pose: bool = True):
+        """Configures a new buffer if a model task was changed."""
+        if task != self.task:
+            self.task = task
+            self.buffer = self.create_buffer(task)
+            self.extractor.toggle_pose(use_pose)
+    
     def toggle_recognition(self, enabled: bool):
         """Toggle main gesture recognition on/off. Resets the inner buffer."""
         self.enable_recognition = enabled

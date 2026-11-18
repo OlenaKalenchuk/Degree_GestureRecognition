@@ -8,7 +8,15 @@ class LandmarkConfig:
     A config class for LandmarkExtractor. Holds values that are not typically changed during landmark detection process.
     """
 
-    def __init__(self, lm_model_paths: dict, min_detection_confidence: float = 0.5, min_tracking_confidence: float = 0.5, default_detection_mode: Literal["video", "image"] = "video"):
+    def __init__(
+            self, 
+            lm_model_paths: dict, 
+            min_detection_confidence: float = 0.5, 
+            min_tracking_confidence: float = 0.5,
+            default_detection_mode: Literal["video", "image"] = "video",
+            num_hands: Literal[1, 2] = 2, 
+            use_pose: bool = True
+            ):
         """
         `lm_model_paths` format example: {"pose": "pose_landmarker.task", "hands": "hand_landmarker.task"}
         """
@@ -17,11 +25,12 @@ class LandmarkConfig:
         self.MIN_DETECTION_CONFIDENCE = min_detection_confidence
         self.MIN_TRACKING_CONFIDENCE = min_tracking_confidence # # if fails, detection occurs. better set to lower
         self.MODEL_PATHS = lm_model_paths
-        self.default_detection_mode = default_detection_mode
-        self.detection_mode = default_detection_mode # CURRENT
-        self.NUM_HANDS = 2
         self.HAND_LANDMARKS = HAND_LANDMARKS
         self.POSE_LANDMARKS = POSE_LANDMARKS
+        self.default_detection_mode = default_detection_mode
+        self.detection_mode = default_detection_mode # CURRENT
+        self.use_pose = use_pose
+        self.num_hands = num_hands
 
     def change_detection_mode(self, detection_mode: Literal["video", "image"] = "video"):
         if detection_mode not in ("video", "image"):
@@ -39,7 +48,7 @@ class LandmarkConfig:
         hand_options = vision.HandLandmarkerOptions(
             base_options = BaseOptions(model_asset_path=hands_path),
             running_mode = vision.RunningMode.VIDEO if self.detection_mode == 'video' else vision.RunningMode.IMAGE,
-            num_hands = self.NUM_HANDS, # 2 = both
+            num_hands = self.num_hands, # 2 = both
             min_hand_detection_confidence=self.MIN_DETECTION_CONFIDENCE,
             min_tracking_confidence=self.MIN_TRACKING_CONFIDENCE
         )
@@ -48,7 +57,7 @@ class LandmarkConfig:
             running_mode = vision.RunningMode.VIDEO if self.detection_mode == 'video' else vision.RunningMode.IMAGE,
             min_pose_detection_confidence=self.MIN_DETECTION_CONFIDENCE,
             min_tracking_confidence=self.MIN_TRACKING_CONFIDENCE
-        )
+        ) if self.use_pose else None
         return {
             "hands": hand_options,
             "pose": pose_options

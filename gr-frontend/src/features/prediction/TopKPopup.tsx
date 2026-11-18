@@ -9,7 +9,7 @@ interface TopKPopupContext {
 }
 
 // A on-click popup with prediction's top-3 confidences.
-export function TopKPopup({ topk, anchorRef, onClose }: TopKPopupContext) {
+export function TopKPopup({ topk, anchorRef, onClose, title = "Top 3"}: TopKPopupContext) {
   const ref = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ top: 0, left: 0 });
 
@@ -41,10 +41,10 @@ export function TopKPopup({ topk, anchorRef, onClose }: TopKPopupContext) {
 
   return createPortal(
     <div ref={ref} className="topk-popup" style={{ position: "fixed", top: position.top, left: position.left}}>
-      <span className="topk-popup-title">Top 3</span>
+      <span className="topk-popup-title">{title}</span>
       <ul>
         {topk.map((p, i) => (
-          <li key={p.class_index}>
+          <li key={i}>
             <span className="topk-rank">{i + 1}</span>
             <span className="topk-label">{p.label}</span>
             <span className="topk-bar-track">
