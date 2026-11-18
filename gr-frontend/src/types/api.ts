@@ -1,16 +1,20 @@
 // from API's schemas:
 // ---- Model management ----
 
+export type TaskType = "ctc" | "classification";
+
 export interface ModelInfo {
   model_id: string;
   device: string;
   is_active: boolean;
+  task: TaskType;
+  class_count: number;
 }
 
 export interface ModelListResponse {
   active_model: string | null;
+  active_class_count: number;
   models: ModelInfo[];
-  class_count: number;
 }
 
 export type SaveType = "FULL" | "WEIGHTS_ONLY" | "ONNX";
@@ -21,6 +25,8 @@ export interface LoadModelRequest {
   class_map_path: string;
   save_type: SaveType;
   device: string;
+  task: TaskType;
+  blank_index: number;
 }
 
 // ---- Predictions ----
@@ -29,25 +35,40 @@ export interface GesturePrediction {
   label: string;
   class_index: number;
   confidence: number; // 0..1
+  start_frame?: number | null;
+  end_frame?: number | null;
 }
 
 export interface WindowPrediction {
   window_index: number;
-  start_frame: number;
-  end_frame: number;
-  start_time?: number | null; // seconds
-  end_time?: number | null; // seconds
   top1: GesturePrediction;
   top3: GesturePrediction[];
 }
 
-export interface PredictResponse {
+export interface SequencePrediction {
+  segment_index: number;
+  text: string;
+  tokens: GesturePrediction[];
+}
+
+export interface PredictionInfo {
   active_model: string | null;
   n_frames: number;
-  windows: WindowPrediction[];
-  // TODO: NOT part of the current backend schema 
+  // TODO: this is NOT a part of the current backend schema 
   landmarks?: LandmarkFrame[];
 }
+
+export interface TopkPredictResponse extends PredictionInfo {
+  task: "classification"; // code smell again
+  windows: WindowPrediction[];
+}
+
+export interface CTCPredictResponse extends PredictionInfo {
+  task: "ctc";
+  sequences: SequencePrediction[];
+}
+
+export type PredictResponse = TopkPredictResponse | CTCPredictResponse;
 
 // ---- Landmarks ----
 
@@ -68,14 +89,12 @@ export interface HandsPresent {
 // client -> server
 export type WebSockMessage = { frame: string } | { recognition: boolean };
 
+
 // server -> client
 export interface WebSockResponse {
   hands_present?: HandsPresent;
   landmarks?: LandmarkFrame;
-  prediction?: {
-    top1: GesturePrediction;
-    top3: GesturePrediction[];
-  };
+  prediction?: PredictResponse;
   status?: string;
   error?: string;
 }

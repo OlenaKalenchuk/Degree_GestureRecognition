@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { predictFile } from "@features/prediction/predict";
-import { nextEntryId, windowToEntry, type PredictionEntry } from "@/utils/predictionHelpers";
+import { makePendingEntry, responseToEntry, type PredictionEntry } from "@/utils/predictionHelpers";
 import type { LandmarkFrame } from "@/types/api";
 
 interface UseVideoUploadResult {
@@ -23,39 +23,48 @@ export function useVideoUpload(): UseVideoUploadResult {
   const [isPredicting, setIsPredicting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
+  const requestIdRef = useRef(0);
 
   const reset = useCallback(() => {
     if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
     objectUrlRef.current = null;
+    requestIdRef.current += 1;
     setVideoUrl(null);
     setFileName(null);
     setEntries([]);
     setLandmarks(null);
     setError(null);
+    setIsPredicting(false);
   }, []);
 
   const selectFile = useCallback((file: File) => {
     reset();
+    const requestId = requestIdRef.current;
+    const isOutdated = () => requestId !== requestIdRef.current; // if current is not the newest request
+
     const url = URL.createObjectURL(file);
     objectUrlRef.current = url;
     setVideoUrl(url);
     setFileName(file.name);
 
     // the "..."
-    const pendingId = nextEntryId();
+    setEntries([makePendingEntry()]);
     setIsPredicting(true);
-    setEntries([{ id: pendingId, top1: { label: "", class_index: -1, confidence: 0 }, topk: [], isUnknown: false, pending: true }]);
 
     predictFile(file)
       .then((response) => {
-        setEntries(response.windows.map(windowToEntry));
+        if (isOutdated()) return;
+        setEntries(responseToEntry(response));
         setLandmarks(response.landmarks ?? null);
       })
       .catch((err) => {
+        if (isOutdated()) return;
         setError(err instanceof Error ? err.message : "Prediction failed.");
         setEntries([]);
       })
-      .finally(() => setIsPredicting(false));
+      .finally(() => {
+        if (!isOutdated()) setIsPredicting(false);
+      });
   }, [reset]);
 
   // Revoke the object URL on unmount.

@@ -34,11 +34,13 @@ export interface ContentRect {
 // Draws x, y [0,1] coordinates and connecting edges.
 function drawLandmarkSet(
   ctx: CanvasRenderingContext2D,
-  points: number[][],
+  points: number[][] | undefined,
   connections: [number, number][],
   rect: ContentRect,
-  { color = "#4fa3d9", pointRadius = 3, lineWidth = 2 }: DrawOptions,
+  { color = "#4fa3d9", pointRadius = 3, lineWidth = 2 }: DrawOptions
 ) {
+  if (!points?.length) return; // no points
+
   const isValid = (p: number[] | undefined) => !!p && !(p[0] === 0 && p[1] === 0);
   const toX = (nx: number) => rect.offsetX + nx * rect.width;
   const toY = (ny: number) => rect.offsetY + ny * rect.height;

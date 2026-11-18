@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getWsBaseUrl } from "@features/api/client";
-import { predictionToEntry, type PredictionEntry } from "@/utils/predictionHelpers";
+import { appendPending, removePending, responseToEntry, type PredictionEntry } from "@/utils/predictionHelpers";
 import type { HandsPresent, LandmarkFrame, WebSockResponse } from "@/types/api";
 
 // Frames-per-second sent to the server.
@@ -40,6 +40,35 @@ export function useCameraSession(): UseCameraSessionResult {
   const [entries, setEntries] = useState<PredictionEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  const captureAndSendFrame = useCallback(() => {
+    const video = videoRef.current;
+    const canvas = captureCanvasRef.current;
+    const ws = wsRef.current;
+    if (!video || !canvas || !ws || ws.readyState !== WebSocket.OPEN || video.videoWidth === 0) {
+      if (Date.now() % 1000 < (1000 / CAPTURE_FPS)) {
+        console.debug("CameraSession: skipping frame capture", {
+          hasVideo: !!video,
+          hasCanvas: !!canvas,
+          wsReadyState: ws?.readyState,
+          videoWidth: video?.videoWidth,
+        });
+      }
+      return;
+    }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // TODO: change to canvas.toBlob() for high fps?
+    const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+    const base64 = dataUrl.split(",")[1];
+    ws.send(JSON.stringify({ frame: base64 }));
+  }, []);
+
+
   const stop = useCallback(() => {
     if (captureIntervalRef.current !== null) {
       window.clearInterval(captureIntervalRef.current);
@@ -53,8 +82,10 @@ export function useCameraSession(): UseCameraSessionResult {
     setIsConnecting(false);
     setLandmarks(null);
     setHandsPresent({ left: false, right: false });
+    setEntries(removePending); 
   }, []);
 
+  
   const start = useCallback(async () => {
     setError(null);
     setIsConnecting(true);
@@ -91,22 +122,22 @@ export function useCameraSession(): UseCameraSessionResult {
           return;
         }
         if (msg.hands_present) setHandsPresent(msg.hands_present);
+        else return;
         if (msg.landmarks) setLandmarks(msg.landmarks);
 
-        const anyHandPresent = !!(msg.hands_present?.left || msg.hands_present?.right);
+        const anyHandPresent = msg.hands_present.left || msg.hands_present.right;
 
         if (msg.prediction) {
-          const entry = predictionToEntry(msg.prediction.top1, msg.prediction.top3);
-          setEntries((prev) => (hasPendingIconRef.current ? [...prev.slice(0, -1), entry] : [...prev, entry]));
-          hasPendingIconRef.current = false;
-        } else if (anyHandPresent && recognitionEnabledRef.current && !hasPendingIconRef.current) {
+          const msgEntries = responseToEntry(msg.prediction);
+          setEntries((prev) => [...removePending(prev), ...msgEntries]);
+
+        } else if (anyHandPresent && recognitionEnabledRef.current) {
           // Show a pending icon when recognition is on and working
-          hasPendingIconRef.current = true;
-          setEntries((prev) => [...prev, { id: "pending", top1: { label: "", class_index: -1, confidence: 0 }, topk: [], isUnknown: false, pending: true }]);
+          setEntries(appendPending);
+        
         } else if (!anyHandPresent && hasPendingIconRef.current) {
           // Remove a pending icon
-          hasPendingIconRef.current = false;
-          setEntries((prev) => prev.filter((e) => e.id !== "pending"));
+          setEntries(removePending);
         }
       };
 
@@ -117,39 +148,12 @@ export function useCameraSession(): UseCameraSessionResult {
       setIsConnecting(false);
       stop();
     }
-  }, [stop]);
-
-  const captureAndSendFrame = useCallback(() => {
-    const video = videoRef.current;
-    const canvas = captureCanvasRef.current;
-    const ws = wsRef.current;
-    if (!video || !canvas || !ws || ws.readyState !== WebSocket.OPEN || video.videoWidth === 0) {
-      if (Date.now() % 1000 < (1000 / CAPTURE_FPS)) {
-        console.debug("CameraSession: skipping frame capture", {
-          hasVideo: !!video,
-          hasCanvas: !!canvas,
-          wsReadyState: ws?.readyState,
-          videoWidth: video?.videoWidth,
-        });
-      }
-      return;
-    }
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    // TODO: change to canvas.toBlob() for high fps?
-    const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
-    const base64 = dataUrl.split(",")[1];
-    ws.send(JSON.stringify({ frame: base64 }));
-  }, []);
+  }, [stop, captureAndSendFrame]);
 
   const toggleRecognition = useCallback((enabled: boolean) => {
     setRecognitionEnabled(enabled);
     recognitionEnabledRef.current = enabled;
+    if (!enabled) setEntries(removePending);
     wsRef.current?.send(JSON.stringify({ recognition: enabled }));
   }, []);
 
